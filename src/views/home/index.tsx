@@ -80,9 +80,9 @@ const data: DataType[] = [
   },
 ];
 
-const App: React.FC = () => (
-  <div className={styles.page}>
-    <div className={styles.table}>
+const App: React.FC = () => {
+  return (
+    <div className={styles.page}>
       <Table<DataType>
         columns={columns}
         dataSource={data}
@@ -90,7 +90,7 @@ const App: React.FC = () => (
         pagination={false}
       />
     </div>
-  </div>
-);
+  );
+};
 
 export default App;

@@ -33,7 +33,8 @@
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.30.1",
     "vite": "^6.3.5",
-    "vite-plugin-electron": "^0.29.0"
+    "vite-plugin-electron": "^0.29.0",
+    "wait-on": "^8.0.3"
   },
   "build": {
     "appId": "com.picture-compressor.tool",
