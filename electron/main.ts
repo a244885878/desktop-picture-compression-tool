@@ -13,6 +13,8 @@ const createWindow = () => {
     },
   });
 
+  win.removeMenu(); // 隐藏顶部菜单栏
+
   const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL;
 
   if (isDev) {
