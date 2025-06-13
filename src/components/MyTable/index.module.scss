@@ -1,0 +1,52 @@
+.tableBox {
+  flex: 1;
+  width: 100%;
+  overflow: hidden;
+
+  :global {
+    //设置包裹表格的所有层的高度为100%
+    .ant-table-wrapper {
+      height: 100%;
+    }
+    //设置加载动画容器的高度为100%，确保在数据加载时显示的动画能覆盖整个表格区域
+    .ant-spin-nested-loading {
+      height: 100%;
+    }
+    //这个类通常用于包裹实际内容，在这里也设置了高度为100%，以保证内容区域正确地占据其容器的全部空间
+    .ant-spin-container {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    //表格的具体容器高度，含实际表格内容的部分，包括表头、表格主体
+    .ant-table {
+      flex: 1;
+      overflow: hidden;
+
+      .ant-table-container {
+        height: 100%;
+      }
+    }
+    //表格主体部分，包含所有行和单元格的数据，不包含表头因此需要减去表头高度，具体数值看表头高度决定
+    .ant-table-body {
+      height: 100% !important;
+      overflow-y: auto !important;
+
+      background-color: white;
+      &::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+
+      &::-webkit-scrollbar-thumb {
+        background: #ccc;
+        border-radius: 3px;
+      }
+
+      &::-webkit-scrollbar-track {
+        background: transparent;
+      }
+    }
+  }
+}

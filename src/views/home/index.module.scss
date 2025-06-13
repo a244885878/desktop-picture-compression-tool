@@ -1,7 +1,32 @@
 .page {
   width: 100vw;
   height: 100vh;
-  background-color: #f0f2f5;
   box-sizing: border-box;
   padding: 20px;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+  gap: 16px;
+  align-content: flex-start;
+
+  .driveLettersList {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    flex: 1;
+    overflow: auto;
+
+    .driveLetters {
+      width: 200px;
+      height: 50px;
+      border: 1px solid #191919;
+      display: flex;
+      align-items: center;
+      border-radius: 10px;
+      box-sizing: border-box;
+      padding: 10px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+  }
 }

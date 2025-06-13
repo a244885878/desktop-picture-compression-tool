@@ -1,94 +1,49 @@
-import React from "react";
-import { Space, Table, Tag } from "antd";
-import type { TableProps } from "antd";
+import React, { useEffect, useState } from "react";
 import styles from "./index.module.scss";
+import { Breadcrumb } from "antd";
+import { WindowsOutlined } from "@ant-design/icons";
 
-interface DataType {
-  key: string;
-  name: string;
-  age: number;
-  address: string;
-  tags: string[];
-}
+// 获取驱动器列表
+const getDriveLetters = (setDriveLetters: (driveLetters: string[]) => void) => {
+  window.electronAPI.receive("system-paths", (msg) => {
+    setDriveLetters(msg);
+  });
+};
 
-const columns: TableProps<DataType>["columns"] = [
-  {
-    title: "Name",
-    dataIndex: "name",
-    render: (text) => <a>{text}</a>,
-  },
-  {
-    title: "Age",
-    dataIndex: "age",
-  },
-  {
-    title: "Address",
-    dataIndex: "address",
-  },
-  {
-    title: "Tags",
-    dataIndex: "tags",
-    render: (_, { tags }) => (
-      <>
-        {tags.map((tag) => {
-          let color = tag.length > 5 ? "geekblue" : "green";
-          if (tag === "loser") {
-            color = "volcano";
-          }
-          return (
-            <Tag color={color} key={tag}>
-              {tag.toUpperCase()}
-            </Tag>
-          );
-        })}
-      </>
-    ),
-  },
-  {
-    title: "Action",
-    dataIndex: "action",
-    render: (_, record) => (
-      <Space size="middle">
-        <a>Invite {record.name}</a>
-        <a>Delete</a>
-      </Space>
-    ),
-  },
-];
+// 盘符组件
+const DriveLetter = () => {
+  const [driveLetters, setDriveLetters] = useState<string[]>([]);
 
-const data: DataType[] = [
-  {
-    key: "1",
-    name: "John Brown",
-    age: 32,
-    address: "New York No. 1 Lake Park",
-    tags: ["nice", "developer"],
-  },
-  {
-    key: "2",
-    name: "Jim Green",
-    age: 42,
-    address: "London No. 1 Lake Park",
-    tags: ["loser"],
-  },
-  {
-    key: "3",
-    name: "Joe Black",
-    age: 32,
-    address: "Sydney No. 1 Lake Park",
-    tags: ["cool", "teacher"],
-  },
-];
+  useEffect(() => {
+    getDriveLetters(setDriveLetters);
+  }, []);
+
+  return (
+    <div className={styles.driveLettersList}>
+      {driveLetters.map((driveLetter) => {
+        return (
+          <div className={styles.driveLetters} key={driveLetter}>
+            <WindowsOutlined style={{ color: "#1677ff", fontSize: "16px" }} />
+            <span style={{ marginLeft: "10px" }}>{driveLetter}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
 
 const App: React.FC = () => {
   return (
     <div className={styles.page}>
-      <Table<DataType>
-        columns={columns}
-        dataSource={data}
-        bordered
-        pagination={false}
+      <Breadcrumb
+        separator=">"
+        items={[
+          {
+            title: "Home",
+          },
+        ]}
       />
+      <DriveLetter></DriveLetter>
     </div>
   );
 };

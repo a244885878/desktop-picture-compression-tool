@@ -1,5 +1,7 @@
 import { app, BrowserWindow } from "electron";
 import * as path from "path";
+import { ipcMain } from "electron";
+import { getSystemPaths } from "./modules/get-disk-drive-letters";
 
 const isDev = !app.isPackaged;
 
@@ -8,8 +10,9 @@ const createWindow = () => {
     width: 1200,
     height: 800,
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
+      preload: path.join(__dirname, "preload.js"), // 用 preload 通信
+      nodeIntegration: false,
+      contextIsolation: true,
     },
   });
 
@@ -23,6 +26,17 @@ const createWindow = () => {
   } else {
     win.loadFile(path.join(__dirname, "../dist/index.html"));
   }
+
+  // 加载完成获取系统盘符列表
+  win.webContents.on("did-finish-load", () => {
+    const paths = getSystemPaths();
+    win.webContents.send("system-paths", paths);
+  });
+
+  // 监听渲染进程的消息
+  ipcMain.on("message", (event, msg) => {
+    console.log(msg);
+  });
 };
 
 app.whenReady().then(() => {
