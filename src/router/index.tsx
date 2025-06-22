@@ -1,7 +1,6 @@
 import { createHashRouter } from "react-router-dom";
 import App from "@/App";
 import Home from "@/views/home";
-import About from "@/views/about";
 
 const router = createHashRouter([
   {
@@ -11,10 +10,6 @@ const router = createHashRouter([
       {
         index: true,
         element: <Home />,
-      },
-      {
-        path: "about",
-        element: <About />,
       },
     ],
   },
