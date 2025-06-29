@@ -3,6 +3,7 @@ import * as path from "path";
 import mime from "mime";
 import type { DirData, Item } from "../types";
 import { ItemType } from "../enum";
+import { createHash } from "crypto";
 
 // 支持的图片扩展名
 const IMAGE_EXTENSIONS = [
@@ -63,6 +64,17 @@ function getDesktopPath(): string {
 }
 
 /**
+ * 根据文件路径生成唯一ID
+ * @param filePath 文件路径
+ * @returns 基于路径的唯一ID
+ */
+function generateFileId(filePath: string): string {
+  const normalizedPath = path.normalize(filePath);
+  const hash = createHash("md5").update(normalizedPath).digest("hex");
+  return hash;
+}
+
+/**
  * 获取Windows磁盘列表
  * @returns 磁盘列表数据
  */
@@ -81,6 +93,7 @@ function getWindowsDrives(): DirData {
           name: `${driveLetter}:`,
           type: ItemType.FOLDER,
           path: drivePath,
+          id: generateFileId(drivePath),
         });
       }
     } catch {
@@ -147,6 +160,7 @@ export function getDirectoryData(targetPath?: string): DirData {
           name: file.name,
           type: ItemType.FOLDER,
           path: fullPath,
+          id: generateFileId(fullPath),
         });
       } else {
         const ext = path.extname(file.name).toLowerCase();
@@ -160,6 +174,7 @@ export function getDirectoryData(targetPath?: string): DirData {
             previewUrl: imageToBase64(fullPath, mimeType),
             mimeType,
             size: fileStat.size,
+            id: generateFileId(fullPath),
           });
         }
       }

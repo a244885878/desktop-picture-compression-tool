@@ -3,9 +3,13 @@ import folderImg from "../../../../assets/image/folder.png";
 import styles from "./index.module.scss";
 import type { DirData } from "../../../../../electron/types";
 import { ItemType } from "../../../../../electron/enum";
-import { Image, Empty } from "antd";
+import { Image, Empty, Checkbox, type CheckboxChangeEvent } from "antd";
 
-const FileList: React.FC<{ items: DirData["items"] }> = ({ items }) => {
+const FileList: React.FC<{
+  items: DirData["items"];
+  selectedItems: DirData["items"];
+  setSelectedItems: React.Dispatch<React.SetStateAction<DirData["items"]>>;
+}> = ({ items, selectedItems, setSelectedItems }) => {
   // 获取图片预览列表
   const getPreviewUrl = () => {
     return items
@@ -34,10 +38,31 @@ const FileList: React.FC<{ items: DirData["items"] }> = ({ items }) => {
     return `${parseFloat(value.toFixed(decimals))} ${sizes[i]}`;
   };
 
+  // 选中文件
+  const handleCheckboxChange = (
+    e: CheckboxChangeEvent,
+    item: DirData["items"][number]
+  ) => {
+    if (e.target.checked) {
+      setSelectedItems([...selectedItems, item]);
+    } else {
+      setSelectedItems(
+        selectedItems.filter((selectedItem) => selectedItem.id !== item.id)
+      );
+    }
+  };
+
   // 显示文件夹或图片
   const showFile = (item: DirData["items"][number]) => {
     if (item.type === ItemType.FOLDER) {
-      return <img src={folderImg} alt={item.name} className={styles.fileImg} />;
+      return (
+        <img
+          src={folderImg}
+          alt={item.name}
+          className={styles.fileImg}
+          style={{ transform: "scale(1.3)" }}
+        />
+      );
     } else {
       return (
         <Image.PreviewGroup items={getPreviewUrl()}>
@@ -70,7 +95,21 @@ const FileList: React.FC<{ items: DirData["items"] }> = ({ items }) => {
             key={index}
             onClick={() => handleFile(item)}
           >
-            {showFile(item)}
+            <div className={styles.fileBox}>
+              {showFile(item)}
+              {item.type === ItemType.IMAGE && (
+                <Checkbox
+                  className={styles.checkbox}
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={(e) => handleCheckboxChange(e, item)}
+                  checked={
+                    !!selectedItems.find(
+                      (selectedItem) => selectedItem.id === item.id
+                    )
+                  }
+                ></Checkbox>
+              )}
+            </div>
             <div className={styles.fileName}>{item.name}</div>
             <div className={styles.fileSize}>
               {item.type === ItemType.FOLDER

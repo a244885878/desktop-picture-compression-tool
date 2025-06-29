@@ -4,6 +4,7 @@ export interface BaseItem {
   name: string;
   type: ItemType;
   path: string; // 添加路径信息，用于导航
+  id: string; // 唯一标识
 }
 
 export interface FolderItem extends BaseItem {

@@ -10,6 +10,13 @@ export default defineConfig({
       {
         // 主进程入口文件
         entry: "electron/main.ts",
+        vite: {
+          build: {
+            rollupOptions: {
+              external: ["sharp"],
+            },
+          },
+        },
       },
       {
         // 预加载脚本配置

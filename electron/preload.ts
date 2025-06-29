@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from "electron";
+import type { Item } from "./types";
 
 contextBridge.exposeInMainWorld("electronAPI", {
   // 渲染进程向主进程（发送消息）
@@ -16,5 +17,17 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.once(channel, (event: IpcRendererEvent, ...args: any[]) =>
       callback(...args)
     );
+  },
+  // 调用图片压缩功能
+  compressPictures: (data: {
+    imageItems: Item[];
+    outputDirectory: string;
+    quality?: number;
+  }) => {
+    return ipcRenderer.invoke("compress-pictures", data);
+  },
+  // 调用删除文件功能
+  deleteFiles: (items: Item[]) => {
+    return ipcRenderer.invoke("delete-files", items);
   },
 });
