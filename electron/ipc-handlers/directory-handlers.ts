@@ -3,6 +3,9 @@ import { getDirectoryData } from "../modules/get-directory-data";
 import { safeSendToWindow, handleError } from "./utils";
 
 export function registerDirectoryHandlers(mainWindow: BrowserWindow) {
+  // 先移除已存在的处理器，避免重复注册
+  ipcMain.removeAllListeners("get-directory-data");
+
   // 注册IPC处理器（只注册一次）
   ipcMain.on("get-directory-data", (event, path: string) => {
     try {

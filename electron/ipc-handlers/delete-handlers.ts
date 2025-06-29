@@ -4,6 +4,9 @@ import type { Item } from "../types";
 import { safeSendToWindow, handleError, createResponse } from "./utils";
 
 export function registerDeleteHandlers(mainWindow: BrowserWindow) {
+  // 先移除已存在的处理器，避免重复注册
+  ipcMain.removeHandler("delete-files");
+
   // 处理删除文件请求
   ipcMain.handle("delete-files", async (event, items: Item[]) => {
     try {

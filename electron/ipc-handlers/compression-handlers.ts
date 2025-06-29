@@ -4,6 +4,9 @@ import type { ImageItem } from "../types";
 import { safeSendToWindow, handleError } from "./utils";
 
 export function registerCompressionHandlers(mainWindow: BrowserWindow) {
+  // 先移除已存在的处理器，避免重复注册
+  ipcMain.removeHandler("compress-pictures");
+
   // 处理图片压缩请求
   ipcMain.handle(
     "compress-pictures",
