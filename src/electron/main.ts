@@ -3,6 +3,7 @@ import * as path from "path";
 import * as os from "os";
 import { promises as fs } from "fs";
 import { fileURLToPath } from "url";
+import { generateThumbnail } from "./module/directory";
 
 const isDev = !app.isPackaged;
 
@@ -20,9 +21,18 @@ function registerLocalFileProtocol() {
       // app-local:///path/to/file.jpg -> /path/to/file.jpg
       let url = request.url;
 
-      // 移除协议前缀
+      // 检查是否是缩略图请求
+      const urlObj = new URL(url);
+      const isThumbnail = urlObj.searchParams.get("thumbnail") === "true";
+
+      // 移除协议前缀和查询参数
       if (url.startsWith("app-local://")) {
         url = url.replace("app-local://", "");
+      }
+      // 移除查询参数
+      const queryIndex = url.indexOf("?");
+      if (queryIndex !== -1) {
+        url = url.substring(0, queryIndex);
       }
 
       // 处理 Windows 路径
@@ -39,29 +49,51 @@ function registerLocalFileProtocol() {
         filePath = decodeURIComponent(cleanUrl);
       }
 
-      // 读取文件并返回响应
-      const fileBuffer = await fs.readFile(filePath);
+      // 检查文件扩展名
       const ext = path.extname(filePath).toLowerCase();
+      const imageExtensions = [
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".gif",
+        ".bmp",
+        ".webp",
+        ".svg",
+        ".ico",
+        ".tiff",
+        ".tif",
+        ".raw",
+        ".heic",
+        ".heif",
+        ".avif",
+      ];
 
-      // 根据文件扩展名确定 MIME 类型
-      const mimeTypes: { [key: string]: string } = {
-        ".jpg": "image/jpeg",
-        ".jpeg": "image/jpeg",
-        ".png": "image/png",
-        ".gif": "image/gif",
-        ".bmp": "image/bmp",
-        ".webp": "image/webp",
-        ".svg": "image/svg+xml",
-        ".ico": "image/x-icon",
-        ".tiff": "image/tiff",
-        ".tif": "image/tiff",
-      };
+      let fileBuffer: Buffer;
+      let mimeType: string;
 
-      const mimeType = mimeTypes[ext] || "application/octet-stream";
+      // 如果是缩略图请求且是图片文件，生成缩略图
+      if (isThumbnail && imageExtensions.includes(ext)) {
+        try {
+          fileBuffer = await generateThumbnail(filePath);
+          mimeType = "image/jpeg"; // 缩略图统一使用 JPEG 格式
+        } catch (error) {
+          console.error("生成缩略图失败，使用原图:", error);
+          // 如果生成缩略图失败，回退到原图
+          fileBuffer = await fs.readFile(filePath);
+          mimeType = getMimeType(ext);
+        }
+      } else {
+        // 读取原文件
+        fileBuffer = await fs.readFile(filePath);
+        mimeType = getMimeType(ext);
+      }
 
-      return new Response(fileBuffer, {
+      // 将 Buffer 转换为 Uint8Array 以兼容 Response 构造函数
+      const uint8Array = new Uint8Array(fileBuffer);
+      return new Response(uint8Array, {
         headers: {
           "Content-Type": mimeType,
+          "Cache-Control": "public, max-age=31536000", // 缓存一年
         },
       });
     } catch (error) {
@@ -69,6 +101,29 @@ function registerLocalFileProtocol() {
       return new Response("File not found", { status: 404 });
     }
   });
+}
+
+/**
+ * 根据文件扩展名获取 MIME 类型
+ */
+function getMimeType(ext: string): string {
+  const mimeTypes: { [key: string]: string } = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".gif": "image/gif",
+    ".bmp": "image/bmp",
+    ".webp": "image/webp",
+    ".svg": "image/svg+xml",
+    ".ico": "image/x-icon",
+    ".tiff": "image/tiff",
+    ".tif": "image/tiff",
+    ".raw": "image/x-raw",
+    ".heic": "image/heic",
+    ".heif": "image/heif",
+    ".avif": "image/avif",
+  };
+  return mimeTypes[ext] || "application/octet-stream";
 }
 
 // 全局窗口引用

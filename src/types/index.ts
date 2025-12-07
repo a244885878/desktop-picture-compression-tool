@@ -156,7 +156,7 @@ declare global {
         };
       }>; // 裁剪图片
       getFileInfo: (filePath: string) => Promise<FileInfo>;
-      getFileUrl: (filePath: string) => string; // 将文件路径转换为 URL
+      getFileUrl: (filePath: string, thumbnail?: boolean) => string; // 将文件路径转换为 URL
     };
   }
 }

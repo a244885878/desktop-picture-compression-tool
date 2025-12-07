@@ -4,18 +4,127 @@ import * as os from "os";
 import { FileItemTypeEnum, type FileItem, type BreadcrumbList } from "@/types";
 import sharp from "sharp";
 import bmp from "sharp-bmp";
+import * as crypto from "crypto";
 const WINDOWS_DRIVES_ROOT = "WIN_DRIVES_ROOT";
+
+// 缩略图配置
+const THUMBNAIL_SIZE = 200; // 缩略图尺寸（像素）
+const THUMBNAIL_QUALITY = 80; // JPEG 质量
+
+/**
+ * 获取缩略图缓存目录
+ */
+function getThumbnailCacheDir(): string {
+  const cacheDir = path.join(
+    os.tmpdir(),
+    "desktop-picture-compression-tool",
+    "thumbnails"
+  );
+  return cacheDir;
+}
+
+/**
+ * 根据文件路径生成缓存文件名（使用文件路径的哈希值）
+ */
+function getThumbnailCachePath(filePath: string): string {
+  const hash = crypto.createHash("md5").update(filePath).digest("hex");
+  const ext = path.extname(filePath).toLowerCase();
+  const cacheDir = getThumbnailCacheDir();
+  return path.join(cacheDir, `${hash}${ext}`);
+}
+
+/**
+ * 生成图片缩略图
+ * @param filePath 原图路径
+ * @returns Promise<Buffer> 缩略图 Buffer
+ */
+export async function generateThumbnail(filePath: string): Promise<Buffer> {
+  const cachePath = getThumbnailCachePath(filePath);
+  const cacheDir = path.dirname(cachePath);
+
+  try {
+    // 确保缓存目录存在
+    await fs.mkdir(cacheDir, { recursive: true });
+
+    // 检查缓存是否存在且有效
+    try {
+      const cacheStats = await fs.stat(cachePath);
+      const fileStats = await fs.stat(filePath);
+
+      // 如果缓存文件比原文件新，使用缓存
+      if (cacheStats.mtime >= fileStats.mtime) {
+        return await fs.readFile(cachePath);
+      }
+    } catch {
+      // 缓存不存在，继续生成
+    }
+
+    // 生成缩略图
+    const ext = path.extname(filePath).toLowerCase();
+    let thumbnailBuffer: Buffer;
+
+    if (ext === ".bmp") {
+      const buffer = await fs.readFile(filePath);
+      const bitmap = bmp.decode(buffer);
+      thumbnailBuffer = await sharp(bitmap.data, {
+        raw: {
+          width: bitmap.width,
+          height: bitmap.height,
+          channels: 4,
+        },
+      })
+        .resize(THUMBNAIL_SIZE, THUMBNAIL_SIZE, {
+          fit: "inside",
+          withoutEnlargement: true,
+        })
+        .jpeg({ quality: THUMBNAIL_QUALITY })
+        .toBuffer();
+    } else {
+      thumbnailBuffer = await sharp(filePath, { failOn: "none" })
+        .resize(THUMBNAIL_SIZE, THUMBNAIL_SIZE, {
+          fit: "inside",
+          withoutEnlargement: true,
+        })
+        .jpeg({ quality: THUMBNAIL_QUALITY })
+        .toBuffer();
+    }
+
+    // 保存到缓存
+    await fs.writeFile(cachePath, thumbnailBuffer);
+
+    return thumbnailBuffer;
+  } catch (error) {
+    console.error("生成缩略图失败:", error);
+    // 如果生成失败，尝试读取原图（但会限制大小）
+    try {
+      return await sharp(filePath, { failOn: "none" })
+        .resize(THUMBNAIL_SIZE, THUMBNAIL_SIZE, {
+          fit: "inside",
+          withoutEnlargement: true,
+        })
+        .jpeg({ quality: THUMBNAIL_QUALITY })
+        .toBuffer();
+    } catch {
+      throw error;
+    }
+  }
+}
 
 /**
  * 将文件路径转换为可在浏览器中使用的 URL
  * 使用自定义协议 app-local:// 来安全地访问本地文件
  * @param filePath 文件路径
+ * @param thumbnail 是否使用缩略图模式，默认为 true
  * @returns app-local:// URL
  */
-export function getFileUrl(filePath: string): string {
+export function getFileUrl(
+  filePath: string,
+  thumbnail: boolean = true
+): string {
   // 将路径转换为 app-local:// URL
   // 需要处理 Windows 路径（如 C:\path\to\file.jpg）和 Unix 路径（如 /path/to/file.jpg）
 
+  let url: string;
   if (process.platform === "win32") {
     // Windows 路径：C:\path\to\file.jpg -> app-local:///C:/path/to/file.jpg
     // 将反斜杠替换为正斜杠，并添加 app-local:/// 前缀
@@ -29,9 +138,10 @@ export function getFileUrl(filePath: string): string {
         .split("/")
         .map((segment) => (segment ? encodeURIComponent(segment) : ""))
         .join("/");
-      return `app-local:///${drive}${encodedRest}`;
+      url = `app-local:///${drive}${encodedRest}`;
+    } else {
+      url = `app-local:///${normalizedPath}`;
     }
-    return `app-local:///${normalizedPath}`;
   } else {
     // Unix 路径：/path/to/file.jpg -> app-local:///path/to/file.jpg
     // 对路径进行 URL 编码，但保留前导斜杠
@@ -39,8 +149,15 @@ export function getFileUrl(filePath: string): string {
       .split("/")
       .map((segment) => (segment ? encodeURIComponent(segment) : ""))
       .join("/");
-    return `app-local://${encodedPath}`;
+    url = `app-local://${encodedPath}`;
   }
+
+  // 如果是缩略图模式，添加查询参数
+  if (thumbnail) {
+    url += "?thumbnail=true";
+  }
+
+  return url;
 }
 
 /**
@@ -202,11 +319,16 @@ export function getBreadcrumbList(dirPath?: string): BreadcrumbList {
   const platform = os.platform();
 
   if (platform === "win32") {
+    // 如果是 Windows 驱动器根目录，只返回"计算机"
+    if (targetPath === WINDOWS_DRIVES_ROOT) {
+      return [{ title: "计算机", path: WINDOWS_DRIVES_ROOT }];
+    }
+
     // Windows 路径处理
     const normalized = path.resolve(targetPath);
     const parts = normalized.split(path.sep);
 
-    // 根“计算机”
+    // 根"计算机"
     breadcrumbList.push({ title: "计算机", path: WINDOWS_DRIVES_ROOT });
 
     // 第一个部分是驱动器（如 "C:"）

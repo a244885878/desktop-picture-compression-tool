@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useRef } from "react";
+import { useEffect, useCallback, useRef, useState, useMemo } from "react";
 import styles from "./index.module.scss";
 import { useImmer } from "use-immer";
 import { FileItemTypeEnum, type FileItem, type BreadcrumbList } from "@/types";
@@ -12,6 +12,7 @@ import {
   Modal,
   App,
   Skeleton,
+  Spin,
 } from "antd";
 import type { MenuProps } from "antd";
 import { DropdownMenuEnum } from "@/types";
@@ -38,6 +39,9 @@ const Directory: React.FC = () => {
   const [watermarkModalOpen, setWatermarkModalOpen] = useImmer(false); // 加水印弹窗是否打开
   const [cropModalOpen, setCropModalOpen] = useImmer(false); // 裁剪弹窗是否打开
   const [detailsModalOpen, setDetailsModalOpen] = useImmer(false); // 详情弹窗是否打开
+  const [visibleRange, setVisibleRange] = useState({ start: 0, end: 50 }); // 可见范围
+  const [itemsPerRow, setItemsPerRow] = useState(8); // 每行项目数
+  const listContainerRef = useRef<HTMLDivElement>(null); // 列表容器引用
 
   const { message } = App.useApp();
 
@@ -204,8 +208,83 @@ const Directory: React.FC = () => {
       }
     };
     window.addEventListener("refresh-directory", handler as EventListener);
-    return () => window.removeEventListener("refresh-directory", handler as EventListener);
+    return () =>
+      window.removeEventListener("refresh-directory", handler as EventListener);
   }, [getDirectory]);
+
+  // 虚拟滚动：计算可见范围
+  useEffect(() => {
+    const container = listContainerRef.current;
+    if (!container || list.length === 0) {
+      // 如果列表为空，重置可见范围
+      setVisibleRange({ start: 0, end: 50 });
+      return;
+    }
+
+    const calculateVisibleRange = () => {
+      const scrollTop = container.scrollTop;
+      const containerHeight = container.clientHeight;
+      const containerWidth = container.clientWidth;
+
+      // 每个项目大约 130px 高（100px 图片 + 30px 间距和文字）
+      const itemHeight = 130;
+      const itemWidth = 100; // 图片宽度
+      const gap = 20; // 项目之间的间距
+      const calculatedItemsPerRow = Math.max(
+        1,
+        Math.floor(containerWidth / (itemWidth + gap))
+      ); // 每行项目数
+
+      // 更新每行项目数（用于占位符计算）
+      setItemsPerRow(calculatedItemsPerRow);
+
+      const rowHeight = itemHeight;
+
+      // 计算可见的行范围（上下各多渲染2行作为缓冲）
+      const bufferRows = 2;
+      const startRow = Math.max(
+        0,
+        Math.floor(scrollTop / rowHeight) - bufferRows
+      );
+      const endRow = Math.min(
+        Math.ceil(list.length / calculatedItemsPerRow),
+        Math.ceil((scrollTop + containerHeight) / rowHeight) + bufferRows
+      );
+
+      const start = startRow * calculatedItemsPerRow;
+      const end = Math.min(list.length, endRow * calculatedItemsPerRow);
+
+      setVisibleRange({ start, end });
+    };
+
+    // 初始计算
+    calculateVisibleRange();
+
+    // 监听滚动事件
+    container.addEventListener("scroll", calculateVisibleRange, {
+      passive: true,
+    });
+
+    // 使用 ResizeObserver 监听容器大小变化（比 window resize 更准确）
+    const resizeObserver = new ResizeObserver(() => {
+      calculateVisibleRange();
+    });
+    resizeObserver.observe(container);
+
+    // 同时监听窗口大小变化（作为备用）
+    window.addEventListener("resize", calculateVisibleRange, { passive: true });
+
+    return () => {
+      container.removeEventListener("scroll", calculateVisibleRange);
+      window.removeEventListener("resize", calculateVisibleRange);
+      resizeObserver.disconnect();
+    };
+  }, [list.length]);
+
+  // 计算可见的项目列表
+  const visibleItems = useMemo(() => {
+    return list.slice(visibleRange.start, visibleRange.end);
+  }, [list, visibleRange]);
 
   // 动态显示文件类型
   const showFileType = (item: FileItem, index: number) => {
@@ -224,11 +303,11 @@ const Directory: React.FC = () => {
     }
     // 图片
     if (item.type === FileItemTypeEnum.IMAGE) {
-      // 使用文件路径转换为 URL，而不是 base64
+      // 使用文件路径转换为 URL，默认使用缩略图模式
       const imageUrl = window.electronAPI?.getFileUrl
-        ? window.electronAPI.getFileUrl(item.path)
+        ? window.electronAPI.getFileUrl(item.path, true)
         : item.path;
-      
+
       return (
         <Dropdown
           menu={{ items: getDropdownMenu(item) }}
@@ -241,12 +320,12 @@ const Directory: React.FC = () => {
                 src={imageUrl}
                 className={styles.img}
                 loading="lazy"
-                placeholder={
-                  <Skeleton.Image
-                    active
-                    style={{ width: "100%", height: "100%" }}
-                  />
-                }
+                preview={{
+                  src: window.electronAPI?.getFileUrl
+                    ? window.electronAPI.getFileUrl(item.path, false)
+                    : item.path,
+                }}
+                placeholder={<Spin />}
               />
               {batchOperation && (
                 <Checkbox
@@ -291,7 +370,11 @@ const Directory: React.FC = () => {
         </Checkbox>
       </div>
       {/* 目录列表 */}
-      <div className={styles.directoryItemList}>
+      <div
+        ref={listContainerRef}
+        className={styles.directoryItemList}
+        style={{ position: "relative" }}
+      >
         {loading ? (
           Array.from({ length: 12 }).map((_, index) => (
             <div className={styles.fileBox} key={index}>
@@ -310,7 +393,32 @@ const Directory: React.FC = () => {
             <Empty />
           </div>
         ) : (
-          list.map((item, index) => showFileType(item, index))
+          <>
+            {/* 顶部占位符 */}
+            {visibleRange.start > 0 && (
+              <div
+                style={{
+                  height: Math.floor(visibleRange.start / itemsPerRow) * 130,
+                  width: "100%",
+                }}
+              />
+            )}
+            {/* 可见项目 */}
+            {visibleItems.map((item, index) =>
+              showFileType(item, visibleRange.start + index)
+            )}
+            {/* 底部占位符 */}
+            {visibleRange.end < list.length && (
+              <div
+                style={{
+                  height:
+                    Math.floor((list.length - visibleRange.end) / itemsPerRow) *
+                    130,
+                  width: "100%",
+                }}
+              />
+            )}
+          </>
         )}
       </div>
       {/* 批量操作 */}
@@ -342,7 +450,6 @@ const Directory: React.FC = () => {
               >
                 批量格式转换
               </Button>
-              
             </div>
           )}
         </div>
