@@ -28,8 +28,8 @@ export type FormType = {
   fontSize?: number;
   color?: string;
   angle?: number;
-  xRatio?: number;
-  yRatio?: number;
+  xPercent?: number;
+  yPercent?: number;
 };
 
 const WatermarkModal: React.FC<WatermarkModalProps> = ({
@@ -44,77 +44,198 @@ const WatermarkModal: React.FC<WatermarkModalProps> = ({
   const isUseCurrentDir = Form.useWatch("isUseCurrentDir", form);
   const [confirmLoading, setConfirmLoading] = useState(false);
   const { message } = App.useApp();
+
+  // 表单值监听
   const wmText = Form.useWatch("watermarkText", form);
   const wmColor = Form.useWatch("color", form);
   const wmSize = Form.useWatch("fontSize", form);
   const wmAngle = Form.useWatch("angle", form) ?? 0;
+  const wmXPercent = Form.useWatch("xPercent", form);
+  const wmYPercent = Form.useWatch("yPercent", form);
+
+  // DOM 引用
   const containerRef = useRef<HTMLDivElement | null>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
-  const [displaySize, setDisplaySize] = useState<{
-    w: number;
-    h: number;
-    ox: number;
-    oy: number;
-    nw: number;
-    nh: number;
+
+  // 图片尺寸信息
+  const [imageInfo, setImageInfo] = useState<{
+    naturalWidth: number;
+    naturalHeight: number;
+    displayWidth: number;
+    displayHeight: number;
+    offsetX: number;
+    offsetY: number;
     scale: number;
-  }>({ w: 0, h: 0, ox: 0, oy: 0, nw: 0, nh: 0, scale: 1 });
-  const [dragging, setDragging] = useState(false);
-  const [dragPos, setDragPos] = useState<{ x: number; y: number }>({
-    x: 0.9,
-    y: 0.9,
-  });
+  } | null>(null);
+
+  // 预览图片源
   const previewSrc = useMemo(() => {
     if (!selectedFiles[0]) return undefined;
-    // 使用 getFileUrl 获取图片 URL（预览使用原图）
     return window.electronAPI?.getFileUrl
       ? window.electronAPI.getFileUrl(selectedFiles[0].path, false)
       : selectedFiles[0].path;
   }, [selectedFiles]);
 
+  // 图片加载完成处理
+  const handleImgLoad = React.useCallback(() => {
+    const img = imgRef.current;
+    const container = containerRef.current;
+
+    if (!img || !container) return;
+
+    const naturalWidth = img.naturalWidth;
+    const naturalHeight = img.naturalHeight;
+
+    if (!naturalWidth || !naturalHeight) {
+      console.warn("无法获取图片尺寸", { naturalWidth, naturalHeight });
+      return;
+    }
+
+    // 预览容器尺寸
+    const containerWidth = 320;
+    const containerHeight = 240;
+
+    // 计算缩放比例（objectFit: contain）
+    const scaleX = containerWidth / naturalWidth;
+    const scaleY = containerHeight / naturalHeight;
+    const scale = Math.min(scaleX, scaleY);
+
+    // 计算显示尺寸
+    const displayWidth = naturalWidth * scale;
+    const displayHeight = naturalHeight * scale;
+
+    // 计算居中偏移
+    const offsetX = (containerWidth - displayWidth) / 2;
+    const offsetY = (containerHeight - displayHeight) / 2;
+
+    setImageInfo({
+      naturalWidth,
+      naturalHeight,
+      displayWidth,
+      displayHeight,
+      offsetX,
+      offsetY,
+      scale,
+    });
+  }, []);
+
+  // 图片加载错误处理
+  const handleImgError = () => {
+    console.error("图片加载失败", previewSrc);
+    setImageInfo(null);
+  };
+
+  // 计算预览字体大小
+  const previewFontSize = useMemo(() => {
+    if (!imageInfo) return 16;
+
+    // 与后端保持一致：fontDefault = Math.max(16, Math.round(Math.min(width, height) * 0.05))
+    const minDimension = Math.min(
+      imageInfo.naturalWidth,
+      imageInfo.naturalHeight
+    );
+    const defaultFont = Math.max(16, Math.round(minDimension * 0.05));
+    const baseFont = wmSize && wmSize > 0 ? Math.round(wmSize) : defaultFont;
+
+    // 按预览缩放比例调整字体大小
+    return Math.max(1, baseFont * imageInfo.scale);
+  }, [wmSize, imageInfo]);
+
+  // 计算预览位置（完全模拟后端计算）
+  const previewPosition = useMemo(() => {
+    if (!imageInfo) return { left: 0, top: 0 };
+
+    // 1. 获取百分比值（0-100），默认90
+    const xPercent =
+      wmXPercent !== undefined && wmXPercent !== null
+        ? Math.max(0, Math.min(100, wmXPercent))
+        : 90;
+    const yPercent =
+      wmYPercent !== undefined && wmYPercent !== null
+        ? Math.max(0, Math.min(100, wmYPercent))
+        : 90;
+
+    // 2. 转换为比例值（0-1），与后端完全一致
+    // 后端：const xr = Math.max(0, Math.min(1, opts.xRatio));
+    const xRatio = Math.max(0, Math.min(1, xPercent / 100));
+    const yRatio = Math.max(0, Math.min(1, yPercent / 100));
+
+    // 3. 计算原图坐标（与后端完全一致）
+    // 后端：const x = Math.round(width * xr);
+    const originalX = Math.round(imageInfo.naturalWidth * xRatio);
+    const originalY = Math.round(imageInfo.naturalHeight * yRatio);
+
+    // 4. 转换为预览坐标
+    const previewX = imageInfo.offsetX + originalX * imageInfo.scale;
+    const previewY = imageInfo.offsetY + originalY * imageInfo.scale;
+
+    return {
+      left: Math.round(previewX),
+      top: Math.round(previewY),
+    };
+  }, [wmXPercent, wmYPercent, imageInfo]);
+
+  // 提交处理
   const onFinish = async (values: FormType) => {
     if (!window.electronAPI) return;
-    if (values.isUseCurrentDir) {
-      values.outputDir = currentDirectory;
-    }
+
     if (selectedFiles.length !== 1) {
       message.warning("请先选择文件");
       return;
     }
+
+    if (!imageInfo) {
+      message.warning("图片尚未加载完成，请稍候");
+      return;
+    }
+
+    // 确定输出目录
+    const outputDir = values.isUseCurrentDir
+      ? currentDirectory
+      : values.outputDir;
+
+    // 将百分比转换为比例值（与后端完全一致）
+    const xPercent =
+      values.xPercent !== undefined && values.xPercent !== null
+        ? Math.max(0, Math.min(100, values.xPercent))
+        : 90;
+    const yPercent =
+      values.yPercent !== undefined && values.yPercent !== null
+        ? Math.max(0, Math.min(100, values.yPercent))
+        : 90;
+
+    const xRatio = Math.max(0, Math.min(1, xPercent / 100));
+    const yRatio = Math.max(0, Math.min(1, yPercent / 100));
+
     setConfirmLoading(true);
     try {
       const res = await window.electronAPI.addWatermarks(
         [selectedFiles[0]],
         values.watermarkText,
-        values.outputDir,
+        outputDir,
         {
           fontSize: values.fontSize,
           color: values.color,
           angle: values.angle,
-          xRatio: dragPos.x,
-          yRatio: dragPos.y,
+          xRatio,
+          yRatio,
         }
       );
-      const ok = res.success;
-      if (!ok) {
-        const failed = res.results.filter((r) => !r.success).length;
-        if (failed > 0) {
-          message.error(`有 ${failed} 个文件加水印失败`);
-        }
-      }
-      setConfirmLoading(false);
+
       if (res.success) {
         message.success("加水印成功");
-        const outDir = values.isUseCurrentDir
-          ? currentDirectory
-          : values.outputDir;
-        if (outDir) {
+        if (outputDir) {
           window.dispatchEvent(
-            new CustomEvent<string>("refresh-directory", { detail: outDir })
+            new CustomEvent<string>("refresh-directory", { detail: outputDir })
           );
         }
         onOk?.();
         onCancel?.();
+      } else {
+        const failed = res.results.filter((r) => !r.success).length;
+        if (failed > 0) {
+          message.error(`有 ${failed} 个文件加水印失败`);
+        }
       }
     } catch (error) {
       message.error((error as Error).message);
@@ -123,119 +244,48 @@ const WatermarkModal: React.FC<WatermarkModalProps> = ({
     }
   };
 
+  // 每次打开弹窗时初始化
   useEffect(() => {
     if (open) {
+      // 重置表单
+      form.resetFields();
+
+      // 设置初始值
       form.setFieldsValue({
         isUseCurrentDir: true,
         outputDir: currentDirectory,
         watermarkText: "",
         color: "rgba(255,255,255,0.75)",
         angle: 0,
+        xPercent: 90,
+        yPercent: 90,
       });
-      setDragPos({ x: 0.9, y: 0.9 });
+
+      // 重置图片信息（图片加载完成后会自动设置）
+      setImageInfo(null);
     }
   }, [open, form, currentDirectory]);
 
-  const handleImgLoad = () => {
-    const cw = 320;
-    const ch = 240;
-    const img = imgRef.current;
-    if (!img || !containerRef.current) return;
-    const nw = img.naturalWidth || cw;
-    const nh = img.naturalHeight || ch;
+  // 当预览源变化或弹窗打开时，检查图片是否已加载（处理缓存情况）
+  useEffect(() => {
+    if (open && previewSrc) {
+      setImageInfo(null);
 
-    // 计算缩放比例（与图片实际渲染方式一致）
-    // 使用 Math.min 确保图片完整显示在容器内（objectFit: contain 的行为）
-    const scale = Math.min(cw / nw, ch / nh);
-    const w = nw * scale;
-    const h = nh * scale;
-
-    // 使用 requestAnimationFrame 确保图片完全渲染后再获取实际位置
-    requestAnimationFrame(() => {
-      if (!img || !containerRef.current) return;
-      const imgRect = img.getBoundingClientRect();
-      const containerRect = containerRef.current.getBoundingClientRect();
-
-      // 使用实际渲染位置，但使用计算的尺寸和 scale（确保一致性）
-      const actualOx = imgRect.left - containerRect.left;
-      const actualOy = imgRect.top - containerRect.top;
-
-      setDisplaySize({
-        w,
-        h,
-        ox: actualOx,
-        oy: actualOy,
-        nw,
-        nh,
-        scale,
+      // 使用 requestAnimationFrame 确保 DOM 已更新
+      requestAnimationFrame(() => {
+        const img = imgRef.current;
+        if (
+          img &&
+          img.complete &&
+          img.naturalWidth > 0 &&
+          img.naturalHeight > 0
+        ) {
+          // 图片已经加载完成（可能是缓存），直接触发加载处理
+          handleImgLoad();
+        }
       });
-    });
-  };
-
-  const onMouseMove = (e: React.MouseEvent) => {
-    if (!dragging || !imgRef.current) return;
-
-    // 获取图片的实际渲染位置和尺寸
-    const imgRect = imgRef.current.getBoundingClientRect();
-
-    // 计算鼠标相对于图片左上角的位置（显示坐标，像素）
-    const x = e.clientX - imgRect.left;
-    const y = e.clientY - imgRect.top;
-
-    // 限制在图片实际渲染范围内
-    const cx = Math.max(0, Math.min(imgRect.width, x));
-    const cy = Math.max(0, Math.min(imgRect.height, y));
-
-    // 计算基于原图尺寸的比例（0-1），确保与实际输出一致
-    // 显示坐标 cx 对应原图坐标 = cx / scale
-    // 原图比例 = (cx / scale) / nw = cx / (nw * scale) = cx / displaySize.w
-    // 因为 displaySize.w = nw * scale，所以 dragPos.x = cx / displaySize.w
-    // 这个比例是基于原图的，后端会使用：x = Math.round(width * dragPos.x)
-    const xr = displaySize.w && displaySize.nw ? cx / displaySize.w : 0;
-    const yr = displaySize.h && displaySize.nh ? cy / displaySize.h : 0;
-
-    // 确保比例在 0-1 范围内
-    const clampedXr = Math.max(0, Math.min(1, xr));
-    const clampedYr = Math.max(0, Math.min(1, yr));
-
-    setDragPos({ x: clampedXr, y: clampedYr });
-  };
-
-  const onMouseUp = () => setDragging(false);
-
-  // 计算预览时的字体大小（需要根据显示缩放比例调整）
-  // 与后端保持一致：fontDefault = Math.max(16, Math.round(Math.min(width, height) * 0.05))
-  const previewFontPx = useMemo(() => {
-    if (!displaySize.nw || !displaySize.nh || !displaySize.scale) return 16;
-    const naturalMin = Math.min(displaySize.nw, displaySize.nh);
-    // 与后端计算方式完全一致
-    const defaultFont = Math.max(16, Math.round(naturalMin * 0.05));
-    const base = wmSize && wmSize > 0 ? Math.round(wmSize) : defaultFont;
-    // 预览时需要使用缩放比例，因为预览图片被缩放了
-    // scale 是预览尺寸相对于原图尺寸的比例
-    // 字体大小需要按比例缩放，以保持预览效果与实际输出一致
-    // 例如：原图 4000px，预览容器 320px，scale = 0.08
-    // 输入字体 4000px，预览字体 = 4000 * 0.08 = 320px（在预览中显示）
-    // 实际输出 = 4000px（在原图中显示）
-    const scaledFont = base * displaySize.scale;
-    return Math.max(1, scaledFont);
-  }, [wmSize, displaySize]);
-
-  // 计算预览位置，确保与后端完全一致
-  // 后端：x = Math.round(width * xRatio), y = Math.round(height * yRatio)
-  // 预览需要模拟这个舍入行为，然后转换为预览坐标
-  const previewPosition = useMemo(() => {
-    if (!displaySize.nw || !displaySize.nh || !displaySize.scale) {
-      return { left: 0, top: 0 };
     }
-    // 1. 先计算原图坐标（与后端完全一致，包括舍入）
-    const originalX = Math.round(displaySize.nw * dragPos.x);
-    const originalY = Math.round(displaySize.nh * dragPos.y);
-    // 2. 转换为预览坐标（原图坐标 * scale + 偏移）
-    const previewX = displaySize.ox + originalX * displaySize.scale;
-    const previewY = displaySize.oy + originalY * displaySize.scale;
-    return { left: previewX, top: previewY };
-  }, [dragPos, displaySize]);
+  }, [open, previewSrc, handleImgLoad]);
 
   return (
     <Modal
@@ -268,6 +318,7 @@ const WatermarkModal: React.FC<WatermarkModalProps> = ({
             )}
           </div>
         </Form.Item>
+
         <Form.Item<FormType>
           label="水印文案"
           name="watermarkText"
@@ -293,11 +344,11 @@ const WatermarkModal: React.FC<WatermarkModalProps> = ({
             }}
           />
         </Form.Item>
+
         <Form.Item<FormType>
           label="颜色"
           name="color"
           getValueFromEvent={(color) => {
-            // 从 ColorPicker 的 color 对象中提取 RGB 字符串
             if (color && typeof color === "object" && "toRgbString" in color) {
               return (color as { toRgbString: () => string }).toRgbString();
             }
@@ -306,6 +357,7 @@ const WatermarkModal: React.FC<WatermarkModalProps> = ({
         >
           <ColorPicker />
         </Form.Item>
+
         <Form.Item<FormType> label="倾斜角度" name="angle">
           <InputNumber
             min={-180}
@@ -314,6 +366,71 @@ const WatermarkModal: React.FC<WatermarkModalProps> = ({
             style={{ width: "100%" }}
           />
         </Form.Item>
+
+        <Form.Item<FormType>
+          label="X位置（百分比）"
+          name="xPercent"
+          tooltip="X位置百分比，范围：0-100（0表示最左边，100表示最右边）"
+          rules={[
+            { required: true, message: "请输入X位置百分比" },
+            {
+              type: "number",
+              min: 0,
+              max: 100,
+              message: "X位置百分比范围：0-100",
+            },
+          ]}
+        >
+          <InputNumber
+            min={0}
+            max={100}
+            placeholder="0-100"
+            style={{ width: "100%" }}
+            precision={0}
+            addonAfter="%"
+            parser={(value) => {
+              const parsed = value?.replace(/\D/g, "") ?? "";
+              return parsed === "" ? "" : Number.parseInt(parsed, 10);
+            }}
+            formatter={(value) => {
+              if (!value) return "";
+              return String(Math.floor(Number(value)));
+            }}
+          />
+        </Form.Item>
+
+        <Form.Item<FormType>
+          label="Y位置（百分比）"
+          name="yPercent"
+          tooltip="Y位置百分比，范围：0-100（0表示最上边，100表示最下边）"
+          rules={[
+            { required: true, message: "请输入Y位置百分比" },
+            {
+              type: "number",
+              min: 0,
+              max: 100,
+              message: "Y位置百分比范围：0-100",
+            },
+          ]}
+        >
+          <InputNumber
+            min={0}
+            max={100}
+            placeholder="0-100"
+            style={{ width: "100%" }}
+            precision={0}
+            addonAfter="%"
+            parser={(value) => {
+              const parsed = value?.replace(/\D/g, "") ?? "";
+              return parsed === "" ? "" : Number.parseInt(parsed, 10);
+            }}
+            formatter={(value) => {
+              if (!value) return "";
+              return String(Math.floor(Number(value)));
+            }}
+          />
+        </Form.Item>
+
         <Form.Item<FormType> label="预览">
           <div
             style={{
@@ -326,12 +443,10 @@ const WatermarkModal: React.FC<WatermarkModalProps> = ({
               background: "#fafafa",
             }}
             ref={containerRef}
-            onMouseMove={onMouseMove}
-            onMouseUp={onMouseUp}
-            onMouseLeave={onMouseUp}
           >
             {previewSrc && (
               <img
+                key={previewSrc}
                 src={previewSrc}
                 style={{
                   width: "100%",
@@ -340,40 +455,34 @@ const WatermarkModal: React.FC<WatermarkModalProps> = ({
                 }}
                 ref={imgRef}
                 onLoad={handleImgLoad}
+                onError={handleImgError}
+                alt="预览"
               />
             )}
-            {wmText && (
+            {wmText && imageInfo && (
               <div
                 style={{
                   position: "absolute",
-                  color: wmColor ?? "rgba(255,255,255,0.75)",
-                  fontSize: `${previewFontPx}px`,
-                  fontFamily: "sans-serif",
-                  // 使用与后端一致的文本阴影效果（stroke模拟）
-                  textShadow:
-                    "0 0 2px rgba(0,0,0,0.5), 0 0 2px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.5)",
-                  // 使用与后端完全一致的位置计算（包括 Math.round 舍入）
-                  // 后端：x = Math.round(width * xRatio), y = Math.round(height * yRatio)
-                  // SVG 使用 text-anchor="middle" 和 dominant-baseline="middle"，所以 (x, y) 是文本中心点
-                  // 预览位置已通过 previewPosition 计算，模拟了后端的舍入行为
                   left: `${previewPosition.left}px`,
                   top: `${previewPosition.top}px`,
-                  // 使用 center 作为 transform origin，与后端保持一致
-                  // translate(-50%,-50%) 让文本中心点对齐到 left/top 位置
-                  // rotate 围绕文本中心点旋转，与后端 SVG 的 rotate(${angle} ${x} ${y}) 一致
+                  color: wmColor ?? "rgba(255,255,255,0.75)",
+                  fontSize: `${previewFontSize}px`,
+                  fontFamily: "sans-serif",
+                  textShadow:
+                    "0 0 2px rgba(0,0,0,0.5), 0 0 2px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.5)",
                   transformOrigin: "center center",
                   transform: `translate(-50%,-50%) rotate(${wmAngle}deg)`,
-                  cursor: "grab",
                   userSelect: "none",
                   whiteSpace: "nowrap",
+                  pointerEvents: "none",
                 }}
-                onMouseDown={() => setDragging(true)}
               >
                 {wmText}
               </div>
             )}
           </div>
         </Form.Item>
+
         <Form.Item<FormType>
           label="输出目录"
           name="isUseCurrentDir"
@@ -381,6 +490,7 @@ const WatermarkModal: React.FC<WatermarkModalProps> = ({
         >
           <Checkbox>当前目录</Checkbox>
         </Form.Item>
+
         {!isUseCurrentDir && (
           <Form.Item<FormType>
             label="选择目录"
