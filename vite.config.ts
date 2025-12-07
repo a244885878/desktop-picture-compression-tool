@@ -24,8 +24,9 @@ export default defineConfig(() => {
             },
             build: {
               rollupOptions: {
-                external: ["sharp"],
+                external: ["electron", "sharp"],
               },
+              outDir: "dist-electron",
             },
           },
         },
@@ -40,8 +41,9 @@ export default defineConfig(() => {
             },
             build: {
               rollupOptions: {
-                external: ["sharp"],
+                external: ["electron", "sharp"],
               },
+              outDir: "dist-electron",
             },
           },
           onstart(options) {
@@ -59,11 +61,15 @@ export default defineConfig(() => {
     base: "./",
     resolve: {
       alias: {
-        "@": "/src",
+        "@": path.resolve(__dirname, "src"),
       },
     },
     optimizeDeps: {
       exclude: ["sharp"],
+    },
+    build: {
+      outDir: "dist",
+      emptyOutDir: true,
     },
     server: {
       host: "0.0.0.0",

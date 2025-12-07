@@ -8,7 +8,7 @@
     "dev": "vite",
     "dev:electron": "cross-env ELECTRON=true vite",
     "build": "tsc -b && vite build",
-    "build:electron": "esbuild src/electron/main.ts --bundle --platform=node --format=esm --outfile=dist-electron/main.js --external:electron --external:sharp --alias:@=./src --resolve-extensions=.ts,.js && esbuild src/electron/preload.ts --bundle --platform=node --format=esm --outfile=dist-electron/preload.js --external:electron --external:sharp --alias:@=./src --resolve-extensions=.ts,.js && cross-env ELECTRON=true tsc -b && vite build && electron-builder",
+    "build:electron": "tsc -b && cross-env ELECTRON=true vite build && electron-builder",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -44,19 +44,57 @@
   },
   "build": {
     "appId": "com.desktop-picture-compression-tool",
+    "productName": "桌面图片压缩工具",
     "files": [
-      "dist",
-      "dist-electron",
+      "dist/**/*",
+      "dist-electron/**/*",
       "package.json"
     ],
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "build"
     },
     "electronDownload": {
       "mirror": "https://npmmirror.com/mirrors/electron/"
     },
     "mac": {
-      "identity": null
+      "identity": null,
+      "category": "public.app-category.utilities",
+      "extendInfo": {
+        "NSDesktopFolderUsageDescription": "应用需要访问您的桌面文件夹以浏览和管理图片文件。",
+        "NSDocumentsFolderUsageDescription": "应用需要访问您的文档文件夹以浏览和管理图片文件。",
+        "NSDownloadsFolderUsageDescription": "应用需要访问您的下载文件夹以浏览和管理图片文件。",
+        "NSRemovableVolumesUsageDescription": "应用需要访问可移动存储设备以浏览和管理图片文件。",
+        "NSFileProviderDomainUsageDescription": "应用需要访问文件系统以浏览和管理图片文件。"
+      },
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "zip"
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "zip"
+      ]
     }
   }
 }
