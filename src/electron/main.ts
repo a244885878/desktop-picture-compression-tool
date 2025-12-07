@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, shell } from "electron";
+import { app, BrowserWindow, dialog, shell, protocol } from "electron";
 import * as path from "path";
 import * as os from "os";
 import { promises as fs } from "fs";
@@ -9,6 +9,67 @@ const isDev = !app.isPackaged;
 // 获取 __dirname 的 ES 模块兼容方式
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// 注册自定义协议用于访问本地文件
+// 使用 protocol.handle (Electron 20+) 替代已废弃的 registerFileProtocol
+// 这样可以安全地访问本地文件，而不受 webSecurity 限制
+function registerLocalFileProtocol() {
+  protocol.handle("app-local", async (request) => {
+    try {
+      // 从 URL 中提取文件路径
+      // app-local:///path/to/file.jpg -> /path/to/file.jpg
+      let url = request.url;
+
+      // 移除协议前缀
+      if (url.startsWith("app-local://")) {
+        url = url.replace("app-local://", "");
+      }
+
+      // 处理 Windows 路径
+      let filePath: string;
+      if (process.platform === "win32") {
+        // Windows: app-local:///C:/path/to/file.jpg -> C:\path\to\file.jpg
+        // 移除前导斜杠，然后解码 URL
+        const decodedPath = decodeURIComponent(url.replace(/^\/+/, ""));
+        filePath = decodedPath.replace(/\//g, "\\");
+      } else {
+        // Unix: app-local:///path/to/file.jpg -> /path/to/file.jpg
+        // 移除前导斜杠（如果有多个）
+        const cleanUrl = url.replace(/^\/+/, "/");
+        filePath = decodeURIComponent(cleanUrl);
+      }
+
+      // 读取文件并返回响应
+      const fileBuffer = await fs.readFile(filePath);
+      const ext = path.extname(filePath).toLowerCase();
+
+      // 根据文件扩展名确定 MIME 类型
+      const mimeTypes: { [key: string]: string } = {
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".gif": "image/gif",
+        ".bmp": "image/bmp",
+        ".webp": "image/webp",
+        ".svg": "image/svg+xml",
+        ".ico": "image/x-icon",
+        ".tiff": "image/tiff",
+        ".tif": "image/tiff",
+      };
+
+      const mimeType = mimeTypes[ext] || "application/octet-stream";
+
+      return new Response(fileBuffer, {
+        headers: {
+          "Content-Type": mimeType,
+        },
+      });
+    } catch (error) {
+      console.error("Error handling app-local protocol:", error);
+      return new Response("File not found", { status: 404 });
+    }
+  });
+}
 
 // 全局窗口引用
 let mainWindow: BrowserWindow | null = null;
@@ -113,7 +174,7 @@ const createWindow = () => {
         responseHeaders: {
           ...details.responseHeaders,
           "Content-Security-Policy": [
-            "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https:;",
+            "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: app-local:; connect-src 'self' https:;",
           ],
         },
       });
@@ -150,7 +211,10 @@ const createWindow = () => {
   }
 };
 
+// 在应用准备就绪时注册自定义协议
 app.whenReady().then(async () => {
+  // 注册自定义协议
+  registerLocalFileProtocol();
   // 检查文件系统权限
   const hasPermission = await checkFileSystemPermission();
 

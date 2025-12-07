@@ -7,6 +7,43 @@ import bmp from "sharp-bmp";
 const WINDOWS_DRIVES_ROOT = "WIN_DRIVES_ROOT";
 
 /**
+ * 将文件路径转换为可在浏览器中使用的 URL
+ * 使用自定义协议 app-local:// 来安全地访问本地文件
+ * @param filePath 文件路径
+ * @returns app-local:// URL
+ */
+export function getFileUrl(filePath: string): string {
+  // 将路径转换为 app-local:// URL
+  // 需要处理 Windows 路径（如 C:\path\to\file.jpg）和 Unix 路径（如 /path/to/file.jpg）
+
+  if (process.platform === "win32") {
+    // Windows 路径：C:\path\to\file.jpg -> app-local:///C:/path/to/file.jpg
+    // 将反斜杠替换为正斜杠，并添加 app-local:/// 前缀
+    const normalizedPath = filePath.replace(/\\/g, "/");
+    // 对路径进行 URL 编码，处理特殊字符（如空格、中文等）
+    // 但需要保留驱动器字母和冒号
+    const driveMatch = normalizedPath.match(/^([A-Za-z]:)(.*)$/);
+    if (driveMatch) {
+      const [, drive, rest] = driveMatch;
+      const encodedRest = rest
+        .split("/")
+        .map((segment) => (segment ? encodeURIComponent(segment) : ""))
+        .join("/");
+      return `app-local:///${drive}${encodedRest}`;
+    }
+    return `app-local:///${normalizedPath}`;
+  } else {
+    // Unix 路径：/path/to/file.jpg -> app-local:///path/to/file.jpg
+    // 对路径进行 URL 编码，但保留前导斜杠
+    const encodedPath = filePath
+      .split("/")
+      .map((segment) => (segment ? encodeURIComponent(segment) : ""))
+      .join("/");
+    return `app-local://${encodedPath}`;
+  }
+}
+
+/**
  * 获取目录内容（文件夹和图片文件）
  * @param dirPath 可选参数，指定要读取的路径。如果不传，则根据系统使用默认路径
  * @returns Promise<FileItem[]> 返回文件夹和图片文件列表
@@ -71,24 +108,12 @@ export async function getDirectoryContents(
         ];
 
         if (imageExtensions.includes(ext)) {
-          // 读取图片文件并转换为Base64
-          let imageBase64: string | undefined;
-          try {
-            const imageBuffer = await fs.readFile(itemPath);
-            const mimeType = getMimeType(ext);
-            imageBase64 = `data:${mimeType};base64,${imageBuffer.toString(
-              "base64"
-            )}`;
-          } catch (error) {
-            console.error(`读取图片文件失败: ${itemPath}`, error);
-            // 如果读取失败，imageData保持undefined
-          }
-
+          // 不再读取图片文件转换为Base64，直接使用文件路径
+          // 前端将通过 file:// 协议或 Electron 的本地文件访问来显示图片
           result.push({
             name: item.name,
             path: itemPath,
             type: FileItemTypeEnum.IMAGE,
-            imageBase64,
           });
         }
       }
@@ -147,31 +172,6 @@ async function getWindowsDrives(): Promise<FileItem[]> {
   }
 
   return drives;
-}
-
-/**
- * 根据文件扩展名获取MIME类型
- * @param ext 文件扩展名（包含点号）
- * @returns 对应的MIME类型
- */
-function getMimeType(ext: string): string {
-  const mimeTypes: { [key: string]: string } = {
-    ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg",
-    ".png": "image/png",
-    ".gif": "image/gif",
-    ".bmp": "image/bmp",
-    ".webp": "image/webp",
-    ".svg": "image/svg+xml",
-    ".ico": "image/x-icon",
-    ".tiff": "image/tiff",
-    ".tif": "image/tiff",
-    ".raw": "image/x-raw",
-    ".heic": "image/heic",
-    ".heif": "image/heif",
-  };
-
-  return mimeTypes[ext.toLowerCase()] || "image/jpeg";
 }
 
 /**

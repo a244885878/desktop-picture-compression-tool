@@ -224,6 +224,11 @@ const Directory: React.FC = () => {
     }
     // 图片
     if (item.type === FileItemTypeEnum.IMAGE) {
+      // 使用文件路径转换为 URL，而不是 base64
+      const imageUrl = window.electronAPI?.getFileUrl
+        ? window.electronAPI.getFileUrl(item.path)
+        : item.path;
+      
       return (
         <Dropdown
           menu={{ items: getDropdownMenu(item) }}
@@ -232,7 +237,17 @@ const Directory: React.FC = () => {
         >
           <div className={styles.fileBox}>
             <div className={styles.imgBox}>
-              <Image src={item.imageBase64} className={styles.img} />
+              <Image
+                src={imageUrl}
+                className={styles.img}
+                loading="lazy"
+                placeholder={
+                  <Skeleton.Image
+                    active
+                    style={{ width: "100%", height: "100%" }}
+                  />
+                }
+              />
               {batchOperation && (
                 <Checkbox
                   onChange={(e) => handleCheckboxChange(item, e.target.checked)}

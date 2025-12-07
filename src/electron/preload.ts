@@ -3,6 +3,7 @@ import {
   getDirectoryContents,
   getBreadcrumbList,
   getFileInfo,
+  getFileUrl,
 } from "./module/directory";
 import {
   deleteFile,
@@ -23,4 +24,5 @@ contextBridge.exposeInMainWorld("electronAPI", {
   addWatermarks, // 加水印
   cropImage, // 裁剪图片
   getFileInfo, // 获取文件详细信息
+  getFileUrl, // 将文件路径转换为 URL
 });
