@@ -14,8 +14,6 @@ import {
   Skeleton,
   Spin,
 } from "antd";
-
-const { PreviewGroup } = Image;
 import type { MenuProps } from "antd";
 import { DropdownMenuEnum } from "@/types";
 import RenameModal from "@/components/RenameModal";
@@ -447,35 +445,32 @@ const Directory: React.FC = () => {
             <Empty />
           </div>
         ) : (
-          <PreviewGroup>
-            <>
-              {/* 顶部占位符 */}
-              {visibleRange.start > 0 && (
-                <div
-                  style={{
-                    height: Math.floor(visibleRange.start / itemsPerRow) * 130,
-                    width: "100%",
-                  }}
-                />
-              )}
-              {/* 可见项目 */}
-              {visibleItems.map((item, index) =>
-                showFileType(item, visibleRange.start + index)
-              )}
-              {/* 底部占位符 */}
-              {visibleRange.end < list.length && (
-                <div
-                  style={{
-                    height:
-                      Math.floor(
-                        (list.length - visibleRange.end) / itemsPerRow
-                      ) * 130,
-                    width: "100%",
-                  }}
-                />
-              )}
-            </>
-          </PreviewGroup>
+          <>
+            {/* 顶部占位符 */}
+            {visibleRange.start > 0 && (
+              <div
+                style={{
+                  height: Math.floor(visibleRange.start / itemsPerRow) * 130,
+                  width: "100%",
+                }}
+              />
+            )}
+            {/* 可见项目 */}
+            {visibleItems.map((item, index) =>
+              showFileType(item, visibleRange.start + index)
+            )}
+            {/* 底部占位符 */}
+            {visibleRange.end < list.length && (
+              <div
+                style={{
+                  height:
+                    Math.floor((list.length - visibleRange.end) / itemsPerRow) *
+                    130,
+                  width: "100%",
+                }}
+              />
+            )}
+          </>
         )}
       </div>
       {/* 批量操作 */}
