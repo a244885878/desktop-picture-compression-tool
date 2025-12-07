@@ -10,7 +10,8 @@
     "build": "tsc -b && vite build",
     "build:electron": "tsc -b && cross-env ELECTRON=true vite build && electron-builder",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "install:fast": "npm install --prefer-offline --no-audit --no-fund --loglevel=warn"
   },
   "dependencies": {
     "@ant-design/v5-patch-for-react-19": "^1.0.3",
@@ -49,14 +50,7 @@
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
-      "package.json",
-      "!node_modules/**/*",
-      "node_modules/sharp/**/*",
-      "node_modules/sharp-bmp/**/*"
-    ],
-    "asarUnpack": [
-      "node_modules/sharp/**/*",
-      "node_modules/sharp-bmp/**/*"
+      "package.json"
     ],
     "directories": {
       "output": "release",
