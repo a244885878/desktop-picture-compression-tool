@@ -202,7 +202,6 @@ const createWindow = () => {
       // 备用方案：使用 app.getAppPath()
       const appPath = app.getAppPath();
       const alternativePath = path.join(appPath, "dist", "index.html");
-      console.log("Trying alternative path:", alternativePath);
       return mainWindow!.loadFile(alternativePath).catch((altErr) => {
         console.error("Alternative path also failed:", altErr);
         throw altErr;

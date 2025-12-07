@@ -51,7 +51,6 @@ export async function deleteFile(filePaths: string[]): Promise<boolean> {
           // 如果是文件夹，递归删除
           try {
             await fs.rm(normalizedPath, { recursive: true, force: true });
-            console.log(`成功删除文件夹: ${normalizedPath}`);
           } catch (rmError) {
             const rmErrorMsg =
               rmError instanceof Error ? rmError.message : String(rmError);
@@ -63,7 +62,6 @@ export async function deleteFile(filePaths: string[]): Promise<boolean> {
           try {
             // 先尝试直接删除
             await fs.unlink(normalizedPath);
-            console.log(`成功删除文件: ${normalizedPath}`);
           } catch (unlinkError) {
             const unlinkErrorCode =
               unlinkError &&
@@ -75,10 +73,6 @@ export async function deleteFile(filePaths: string[]): Promise<boolean> {
             // 如果是权限错误，尝试多种方式修复
             if (unlinkErrorCode === "EACCES" || unlinkErrorCode === "EPERM") {
               try {
-                console.log(
-                  `检测到权限错误，尝试修复文件权限: ${normalizedPath}`
-                );
-
                 // 1. 先检查并修改父目录权限（确保有写权限）
                 const parentDir = path.dirname(normalizedPath);
                 try {
@@ -86,7 +80,6 @@ export async function deleteFile(filePaths: string[]): Promise<boolean> {
                   if (parentStat.isDirectory()) {
                     // 确保父目录有写权限
                     await fs.chmod(parentDir, 0o755);
-                    console.log(`已修改父目录权限: ${parentDir}`);
                   }
                 } catch (parentError) {
                   console.warn(
@@ -98,7 +91,6 @@ export async function deleteFile(filePaths: string[]): Promise<boolean> {
                 // 2. 尝试修改文件权限
                 try {
                   await fs.chmod(normalizedPath, 0o666);
-                  console.log(`已修改文件权限: ${normalizedPath}`);
                 } catch (chmodError) {
                   console.warn(
                     `修改文件权限失败（继续尝试）: ${normalizedPath}`,
@@ -113,20 +105,13 @@ export async function deleteFile(filePaths: string[]): Promise<boolean> {
                   const execAsync = promisify(exec);
                   await execAsync(`xattr -c "${normalizedPath}"`).catch(() => {
                     // 如果 xattr 命令失败（可能没有扩展属性），忽略错误
-                    console.log(
-                      `文件没有扩展属性或无法移除: ${normalizedPath}`
-                    );
                   });
                 } catch {
                   // xattr 命令可能不存在或失败，忽略
-                  console.log(
-                    `无法移除扩展属性（继续尝试）: ${normalizedPath}`
-                  );
                 }
 
                 // 4. 重试删除
                 await fs.unlink(normalizedPath);
-                console.log(`成功删除文件（修复权限后）: ${normalizedPath}`);
               } catch (retryError) {
                 // 所有修复尝试都失败
                 const retryErrorMsg =
@@ -640,7 +625,6 @@ export async function compressFiles(
       }
 
       const outputPath = await nextOutputPath(targetDir, inputPath);
-      console.log(`准备写入文件: ${outputPath}`);
 
       // 确保输出文件的父目录存在
       const outputParentDir = path.dirname(outputPath);
@@ -651,7 +635,6 @@ export async function compressFiles(
         if (!parentStat.isDirectory()) {
           throw new Error(`输出目录不是有效的目录: ${outputParentDir}`);
         }
-        console.log(`输出目录已验证: ${outputParentDir}`);
       } catch (dirError) {
         const dirErrorMsg =
           dirError instanceof Error ? dirError.message : String(dirError);
@@ -703,7 +686,6 @@ export async function compressFiles(
           };
       }
 
-      console.log(`成功压缩文件: ${inputPath} -> ${outputPath}`);
       return { inputPath, outputPath, success: true };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -797,7 +779,6 @@ export async function convertFiles(
           inputPath,
           targetExt
         );
-        console.log(`准备转换文件: ${inputPath} -> ${outputPath}`);
 
         // 确保输出文件的父目录存在
         const outputParentDir = path.dirname(outputPath);
@@ -808,7 +789,6 @@ export async function convertFiles(
           if (!parentStat.isDirectory()) {
             throw new Error(`输出目录不是有效的目录: ${outputParentDir}`);
           }
-          console.log(`输出目录已验证: ${outputParentDir}`);
         } catch (dirError) {
           const dirErrorMsg =
             dirError instanceof Error ? dirError.message : String(dirError);
@@ -832,7 +812,6 @@ export async function convertFiles(
           await bmp.sharpToBmp(image, outputPath);
         }
 
-        console.log(`成功转换文件: ${inputPath} -> ${outputPath}`);
         return { inputPath, outputPath, success: true };
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
@@ -1057,7 +1036,6 @@ export async function addWatermarks(
         );
       }
       const outputPath = await nextWatermarkOutputPath(targetDir, inputPath);
-      console.log(`准备添加水印: ${inputPath} -> ${outputPath}`);
 
       // 确保输出文件的父目录存在
       const outputParentDir = path.dirname(outputPath);
@@ -1068,7 +1046,6 @@ export async function addWatermarks(
         if (!parentStat.isDirectory()) {
           throw new Error(`输出目录不是有效的目录: ${outputParentDir}`);
         }
-        console.log(`输出目录已验证: ${outputParentDir}`);
       } catch (dirError) {
         const dirErrorMsg =
           dirError instanceof Error ? dirError.message : String(dirError);
@@ -1086,7 +1063,6 @@ export async function addWatermarks(
       await sharp(inputPath, { failOn: "none" })
         .composite([{ input: svg }])
         .toFile(outputPath);
-      console.log(`成功添加水印: ${inputPath} -> ${outputPath}`);
       return { inputPath, outputPath, success: true };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -1214,7 +1190,6 @@ export async function cropImage(
 
     const targetDir = await resolveOutputDir(outputDir);
     const outputPath = await nextCropOutputPath(targetDir, inputPath);
-    console.log(`准备裁剪图片: ${inputPath} -> ${outputPath}`);
 
     // 确保输出文件的父目录存在
     const outputParentDir = path.dirname(outputPath);
@@ -1225,7 +1200,6 @@ export async function cropImage(
       if (!parentStat.isDirectory()) {
         throw new Error(`输出目录不是有效的目录: ${outputParentDir}`);
       }
-      console.log(`输出目录已验证: ${outputParentDir}`);
     } catch (dirError) {
       const dirErrorMsg =
         dirError instanceof Error ? dirError.message : String(dirError);
@@ -1253,7 +1227,6 @@ export async function cropImage(
       .extract({ left, top, width, height })
       .toFile(outputPath);
 
-    console.log(`成功裁剪图片: ${inputPath} -> ${outputPath}`);
     return {
       success: true,
       result: { inputPath, outputPath, success: true },
