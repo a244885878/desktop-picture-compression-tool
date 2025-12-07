@@ -49,7 +49,14 @@
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
-      "package.json"
+      "package.json",
+      "!node_modules/**/*",
+      "node_modules/sharp/**/*",
+      "node_modules/sharp-bmp/**/*"
+    ],
+    "asarUnpack": [
+      "node_modules/sharp/**/*",
+      "node_modules/sharp-bmp/**/*"
     ],
     "directories": {
       "output": "release",
