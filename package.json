@@ -9,6 +9,8 @@
     "dev:electron": "cross-env ELECTRON=true vite",
     "build": "tsc -b && vite build",
     "build:electron": "tsc -b && cross-env ELECTRON=true vite build && electron-builder",
+    "build:electron:win": "node scripts/clean-release-win.js && tsc -b && cross-env ELECTRON=true vite build && electron-builder",
+    "clean:release": "node scripts/clean-release-win.js",
     "lint": "eslint .",
     "preview": "vite preview"
   },
