@@ -221,6 +221,22 @@ const WatermarkModal: React.FC<WatermarkModalProps> = ({
     return Math.max(1, scaledFont);
   }, [wmSize, displaySize]);
 
+  // 计算预览位置，确保与后端完全一致
+  // 后端：x = Math.round(width * xRatio), y = Math.round(height * yRatio)
+  // 预览需要模拟这个舍入行为，然后转换为预览坐标
+  const previewPosition = useMemo(() => {
+    if (!displaySize.nw || !displaySize.nh || !displaySize.scale) {
+      return { left: 0, top: 0 };
+    }
+    // 1. 先计算原图坐标（与后端完全一致，包括舍入）
+    const originalX = Math.round(displaySize.nw * dragPos.x);
+    const originalY = Math.round(displaySize.nh * dragPos.y);
+    // 2. 转换为预览坐标（原图坐标 * scale + 偏移）
+    const previewX = displaySize.ox + originalX * displaySize.scale;
+    const previewY = displaySize.oy + originalY * displaySize.scale;
+    return { left: previewX, top: previewY };
+  }, [dragPos, displaySize]);
+
   return (
     <Modal
       {...rest}
@@ -336,20 +352,17 @@ const WatermarkModal: React.FC<WatermarkModalProps> = ({
                   // 使用与后端一致的文本阴影效果（stroke模拟）
                   textShadow:
                     "0 0 2px rgba(0,0,0,0.5), 0 0 2px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.5)",
-                  // 计算位置：确保预览位置与实际输出完全一致
-                  // 后端计算：x = Math.round(width * xRatio), y = Math.round(height * yRatio)
-                  // dragPos.x 和 dragPos.y 是基于原图的比例（0-1）
-                  // 预览位置计算（必须与后端完全一致）：
-                  // 1. 原图坐标：x = nw * dragPos.x, y = nh * dragPos.y
-                  // 2. 显示坐标：left = ox + x * scale, top = oy + y * scale
-                  // 3. 简化：left = ox + nw * dragPos.x * scale = ox + displaySize.w * dragPos.x
-                  // 使用精确计算，避免舍入误差累积
-                  // 注意：后端使用 Math.round，但预览使用精确值以保持平滑
-                  left: `${displaySize.ox + displaySize.w * dragPos.x}px`,
-                  top: `${displaySize.oy + displaySize.h * dragPos.y}px`,
-                  // 使用 center 作为 transform origin，与后端保持一致（text-anchor="middle", dominant-baseline="middle"）
+                  // 使用与后端完全一致的位置计算（包括 Math.round 舍入）
+                  // 后端：x = Math.round(width * xRatio), y = Math.round(height * yRatio)
+                  // SVG 使用 text-anchor="middle" 和 dominant-baseline="middle"，所以 (x, y) 是文本中心点
+                  // 预览位置已通过 previewPosition 计算，模拟了后端的舍入行为
+                  left: `${previewPosition.left}px`,
+                  top: `${previewPosition.top}px`,
+                  // 使用 center 作为 transform origin，与后端保持一致
+                  // translate(-50%,-50%) 让文本中心点对齐到 left/top 位置
+                  // rotate 围绕文本中心点旋转，与后端 SVG 的 rotate(${angle} ${x} ${y}) 一致
                   transformOrigin: "center center",
-                  transform: `rotate(${wmAngle}deg) translate(-50%,-50%)`,
+                  transform: `translate(-50%,-50%) rotate(${wmAngle}deg)`,
                   cursor: "grab",
                   userSelect: "none",
                   whiteSpace: "nowrap",
