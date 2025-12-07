@@ -62,8 +62,11 @@ const CropModal: React.FC<CropModalProps> = ({
     null
   );
   const previewSrc = useMemo(() => {
-    const img = selectedFiles.find((f) => !!f.imageBase64)?.imageBase64;
-    return img ?? selectedFiles[0]?.imageBase64;
+    if (!selectedFiles[0]) return undefined;
+    // 使用 getFileUrl 获取图片 URL（预览使用原图）
+    return window.electronAPI?.getFileUrl
+      ? window.electronAPI.getFileUrl(selectedFiles[0].path, false)
+      : selectedFiles[0].path;
   }, [selectedFiles]);
 
   const onFinish = async (values: FormType) => {

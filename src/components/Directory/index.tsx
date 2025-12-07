@@ -14,6 +14,8 @@ import {
   Skeleton,
   Spin,
 } from "antd";
+
+const { PreviewGroup } = Image;
 import type { MenuProps } from "antd";
 import { DropdownMenuEnum } from "@/types";
 import RenameModal from "@/components/RenameModal";
@@ -42,6 +44,8 @@ const Directory: React.FC = () => {
   const [visibleRange, setVisibleRange] = useState({ start: 0, end: 50 }); // 可见范围
   const [itemsPerRow, setItemsPerRow] = useState(8); // 每行项目数
   const listContainerRef = useRef<HTMLDivElement>(null); // 列表容器引用
+  const itemsPerRowRef = useRef(8); // 使用 ref 存储当前每行项目数，避免闭包问题
+  const visibleRangeRef = useRef({ start: 0, end: 50 }); // 使用 ref 存储当前可见范围，避免闭包问题
 
   const { message } = App.useApp();
 
@@ -221,27 +225,25 @@ const Directory: React.FC = () => {
       return;
     }
 
+    // 每个项目大约 130px 高（100px 图片 + 30px 间距和文字）
+    const itemHeight = 130;
+    const itemWidth = 100; // 图片宽度
+    const gap = 20; // 项目之间的间距
+
     const calculateVisibleRange = () => {
       const scrollTop = container.scrollTop;
       const containerHeight = container.clientHeight;
       const containerWidth = container.clientWidth;
 
-      // 每个项目大约 130px 高（100px 图片 + 30px 间距和文字）
-      const itemHeight = 130;
-      const itemWidth = 100; // 图片宽度
-      const gap = 20; // 项目之间的间距
       const calculatedItemsPerRow = Math.max(
         1,
         Math.floor(containerWidth / (itemWidth + gap))
       ); // 每行项目数
 
-      // 更新每行项目数（用于占位符计算）
-      setItemsPerRow(calculatedItemsPerRow);
-
       const rowHeight = itemHeight;
 
-      // 计算可见的行范围（上下各多渲染2行作为缓冲）
-      const bufferRows = 2;
+      // 计算可见的行范围（上下各多渲染5行作为缓冲，避免快速滚动时白屏）
+      const bufferRows = 5;
       const startRow = Math.max(
         0,
         Math.floor(scrollTop / rowHeight) - bufferRows
@@ -254,30 +256,78 @@ const Directory: React.FC = () => {
       const start = startRow * calculatedItemsPerRow;
       const end = Math.min(list.length, endRow * calculatedItemsPerRow);
 
-      setVisibleRange({ start, end });
+      // 只在值真正改变时才更新状态，避免不必要的重渲染
+      const newRange = { start, end };
+      const itemsPerRowChanged =
+        calculatedItemsPerRow !== itemsPerRowRef.current;
+      const rangeChanged =
+        newRange.start !== visibleRangeRef.current.start ||
+        newRange.end !== visibleRangeRef.current.end;
+
+      if (itemsPerRowChanged || rangeChanged) {
+        // 批量更新状态，减少重渲染次数
+        if (itemsPerRowChanged) {
+          setItemsPerRow(calculatedItemsPerRow);
+          itemsPerRowRef.current = calculatedItemsPerRow;
+        }
+        if (rangeChanged) {
+          setVisibleRange(newRange);
+          visibleRangeRef.current = newRange;
+        }
+      }
     };
 
     // 初始计算
     calculateVisibleRange();
 
-    // 监听滚动事件
-    container.addEventListener("scroll", calculateVisibleRange, {
+    // 使用节流优化滚动事件，避免快速滚动时频繁计算
+    let rafId: number | null = null;
+    let resizeRafId: number | null = null;
+
+    const throttledCalculate = () => {
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        calculateVisibleRange();
+        rafId = null;
+      });
+    };
+
+    // 使用节流优化 ResizeObserver 回调
+    const throttledResizeCalculate = () => {
+      if (resizeRafId !== null) return;
+      resizeRafId = requestAnimationFrame(() => {
+        calculateVisibleRange();
+        resizeRafId = null;
+      });
+    };
+
+    // 监听滚动事件（使用节流）
+    container.addEventListener("scroll", throttledCalculate, {
       passive: true,
     });
 
     // 使用 ResizeObserver 监听容器大小变化（比 window resize 更准确）
-    const resizeObserver = new ResizeObserver(() => {
-      calculateVisibleRange();
-    });
+    const resizeObserver = new ResizeObserver(throttledResizeCalculate);
     resizeObserver.observe(container);
 
-    // 同时监听窗口大小变化（作为备用）
-    window.addEventListener("resize", calculateVisibleRange, { passive: true });
+    // 同时监听窗口大小变化（作为备用，也使用节流）
+    window.addEventListener("resize", throttledResizeCalculate, {
+      passive: true,
+    });
 
+    // 清理函数
     return () => {
-      container.removeEventListener("scroll", calculateVisibleRange);
-      window.removeEventListener("resize", calculateVisibleRange);
+      container.removeEventListener("scroll", throttledCalculate);
+      window.removeEventListener("resize", throttledResizeCalculate);
       resizeObserver.disconnect();
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      if (resizeRafId !== null) {
+        cancelAnimationFrame(resizeRafId);
+        resizeRafId = null;
+      }
     };
   }, [list.length]);
 
@@ -325,7 +375,11 @@ const Directory: React.FC = () => {
                     ? window.electronAPI.getFileUrl(item.path, false)
                     : item.path,
                 }}
-                placeholder={<Spin />}
+                placeholder={
+                  <div className={styles.imgPlaceholder}>
+                    <Spin />
+                  </div>
+                }
               />
               {batchOperation && (
                 <Checkbox
@@ -393,32 +447,35 @@ const Directory: React.FC = () => {
             <Empty />
           </div>
         ) : (
-          <>
-            {/* 顶部占位符 */}
-            {visibleRange.start > 0 && (
-              <div
-                style={{
-                  height: Math.floor(visibleRange.start / itemsPerRow) * 130,
-                  width: "100%",
-                }}
-              />
-            )}
-            {/* 可见项目 */}
-            {visibleItems.map((item, index) =>
-              showFileType(item, visibleRange.start + index)
-            )}
-            {/* 底部占位符 */}
-            {visibleRange.end < list.length && (
-              <div
-                style={{
-                  height:
-                    Math.floor((list.length - visibleRange.end) / itemsPerRow) *
-                    130,
-                  width: "100%",
-                }}
-              />
-            )}
-          </>
+          <PreviewGroup>
+            <>
+              {/* 顶部占位符 */}
+              {visibleRange.start > 0 && (
+                <div
+                  style={{
+                    height: Math.floor(visibleRange.start / itemsPerRow) * 130,
+                    width: "100%",
+                  }}
+                />
+              )}
+              {/* 可见项目 */}
+              {visibleItems.map((item, index) =>
+                showFileType(item, visibleRange.start + index)
+              )}
+              {/* 底部占位符 */}
+              {visibleRange.end < list.length && (
+                <div
+                  style={{
+                    height:
+                      Math.floor(
+                        (list.length - visibleRange.end) / itemsPerRow
+                      ) * 130,
+                    width: "100%",
+                  }}
+                />
+              )}
+            </>
+          </PreviewGroup>
         )}
       </div>
       {/* 批量操作 */}

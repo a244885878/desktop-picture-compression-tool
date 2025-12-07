@@ -45,7 +45,7 @@
   },
   "build": {
     "appId": "com.desktop-picture-compression-tool",
-    "productName": "桌面图片压缩工具",
+    "productName": "图片处理小工具",
     "files": [
       "dist/**/*",
       "dist-electron/**/*",

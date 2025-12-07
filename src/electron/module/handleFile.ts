@@ -990,9 +990,12 @@ export async function addWatermarks(
         16,
         Math.round(Math.min(width, height) * 0.05)
       );
+      // 字体大小限制：不能超过图片最小边的2倍，也不能小于8
+      // 这样可以避免字体过大导致渲染问题
+      const maxFontSize = Math.min(width, height) * 2;
       const fontSize =
         opts?.fontSize && opts.fontSize > 0
-          ? Math.round(opts.fontSize)
+          ? Math.max(8, Math.min(Math.round(opts.fontSize), maxFontSize))
           : fontDefault;
       const color =
         opts?.color && opts.color.trim()
