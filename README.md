@@ -1,73 +1,75 @@
-# React + TypeScript + Vite
+# 🖼️ 桌面图片压缩工具
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+一个功能强大的桌面图片处理工具，基于 Electron + React + TypeScript 构建，支持图片压缩、格式转换、水印添加、裁剪等多种操作。
 
-Currently, two official plugins are available:
+## ✨ 功能特性
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+### 📁 文件管理
 
-## React Compiler
+- ✅ 访问用户磁盘目录，浏览本地图片文件
+- ✅ 直观的图片文件列表展示
+- ✅ 支持多种图片格式
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### 🎯 核心功能
 
-## Expanding the ESLint configuration
+- **压缩** - 高效压缩图片，减小文件体积
+- **格式转换** - 支持多种图片格式之间的转换
+- **添加水印** - 为图片添加自定义水印
+- **裁剪** - 精确裁剪图片尺寸
+- **重命名** - 快速重命名图片文件
+- **删除** - 安全删除不需要的图片
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### 🚀 批量操作
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+- 支持批量压缩、格式转换、添加水印等操作
+- 提高处理效率，节省时间
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### 🖱️ 操作方式
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+- 右键菜单快速访问所有功能
+- 简洁直观的用户界面
+
+## 📦 安装
+
+使用 npm 或 cnpm 安装项目依赖：
+
+```bash
+npm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+或
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+cnpm install
 ```
+
+## 🏃 本地开发
+
+启动 Electron 开发环境：
+
+```bash
+npm run dev:electron
+```
+
+## 📤 打包
+
+构建生产版本并打包为可执行文件：
+
+```bash
+npm run build:electron
+```
+
+打包完成后，可执行文件将输出到 `release` 目录。
+
+## 🛠️ 技术栈
+
+- **Electron** - 跨平台桌面应用框架
+- **React 19** - 现代化 UI 框架
+- **TypeScript** - 类型安全的 JavaScript
+- **Vite** - 快速的前端构建工具
+- **Ant Design** - 企业级 UI 组件库
+- **Sharp** - 高性能图片处理库
+
+---
+
+**注意**：首次运行时，应用会请求访问文件系统的权限，请根据提示授予相应权限以便正常使用。
